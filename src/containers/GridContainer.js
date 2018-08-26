@@ -5,9 +5,9 @@
 import React, { Component } from 'react';
 import 'antd/dist/antd.css';
 import WrappedHorizontalLoginForm from '../components/HorizontalLoginForm';
-import DrawerForm from '../components/DrawerForm';
 import CommonGamesContent from '../components/CommonGamesContent';
-import { Layout, Menu, Icon, Button, Collapse, List, Avatar, Tooltip, notification, Spin } from 'antd';
+import SelectedUserContent from '../components/SelectedUserContent';
+import { Layout, Menu, Icon, Button, Collapse, Tooltip, notification, Spin } from 'antd';
 const { Header, Content, Sider } = Layout;
 const Panel = Collapse.Panel;
 
@@ -24,7 +24,6 @@ export default class GridContainer extends Component {
     state = {
         collapsed: false,
         users: [],
-        isNotFoundUser: false,
         commonGames: [],
         isShowSpin: false
     };
@@ -46,15 +45,20 @@ export default class GridContainer extends Component {
         this.getSteamId(username)
             .then(({ steamid }) => {
                 if(steamid == null) {
-                    this.setState({isNotFoundUser: true});
+                    openNotificationWithIcon('warning', 'Внимание!', 'Данный пользователь не найден в Steam. Попробуйте снова.')
+                    return null;
+                } else {
+                    return this.getPlayerInfo(steamid);
                 }
-                return this.getPlayerInfo(steamid);
             })
             .then((player) => {
-                if(this.state.users.find(el=>el.steamid === player.info.steamid)) {
-                    openNotificationWithIcon('warning', 'Внимание!', 'Данный пользователь уже добавлен. Повторное добавление запрещено.')
-                } else {
-                    this.state.users.push({ ...player, name: player.info.personaname, steamid: player.info.steamid });
+                if(player) {
+                    if (this.state.users.find(el=>el.steamid === player.info.steamid)) {
+                        openNotificationWithIcon('error', 'Внимание!', 'Данный пользователь уже добавлен. Повторное добавление запрещено.')
+                    } else {
+                        this.state.users.push({...player, name: player.info.personaname, steamid: player.info.steamid});
+                        openNotificationWithIcon('success', 'Успех!', 'Пользователь добавлен в список поиска общих игр.')
+                    }
                 }
                 this.toggle();
             });
@@ -83,6 +87,7 @@ export default class GridContainer extends Component {
     deleteUser(user) {
         this.setState({users: this.state.users.filter(el=>el.steamid !== user.steamid)});
         this.setState({selectedUser: undefined, commonGames: []});
+        openNotificationWithIcon('success', 'Успех!', 'Пользователь удален из списка поиска общих игр.')
     }
 
     render(){
@@ -91,7 +96,7 @@ export default class GridContainer extends Component {
                 <Layout>
                     <Sider theme="dark" width="300px" style={{ overflow: 'auto', height: '100vh', position: 'fixed', left: 0 }}>
                         <div style = {{height: '32px', margin: '16px'}}>
-                            <Tooltip placement="top" title={this.state.users.length <= 1 ? "Нужно добавить двух игроков" : null}>
+                            <Tooltip placement="top" title={this.state.users.length <= 1 ? "Нужно добавить минимум двух игроков" : null}>
                             <Button style={{width: '100%'}} type="primary"
                                     onClick={()=>{
                                         this.toggle();
@@ -137,32 +142,10 @@ export default class GridContainer extends Component {
                                         }}/>
                                 </Panel>
                                 <Panel header="Общая информация о выделенном игроке" key="1">
-                                    {this.state.selectedUser &&
-                                    <List
-                                        itemLayout="horizontal"
-                                        dataSource={[{}]}
-                                        renderItem={item => (
-                                            <List.Item actions={[
-                                                <DrawerForm games={this.state.selectedUser && this.state.selectedUser.ownedGames || []}/>,
-                                                <Button onClick={()=>window.location.href=this.state.selectedUser.info.profileurl}>Перейти в Steam профиль</Button>,
-                                                <Button type="danger" onClick={()=>this.deleteUser(this.state.selectedUser)}>Удалить из списка</Button>
-                                            ]}>
-                                                <List.Item.Meta
-                                                    avatar={<Avatar src={this.state.selectedUser.info.avatarfull} />}
-                                                    title={this.state.selectedUser.name}
-                                                    description={
-                                                        <div>
-                                                            <p>Количество игр: {this.state.selectedUser.ownedGames.length || 0}</p>
-                                                            <p>Steam Id: {this.state.selectedUser.info.steamid}</p>
-                                                            <p>{this.state.selectedUser.info.profileurl}</p>
-                                                        </div>
-                                                    }
-                                                />
-                                            </List.Item>
-                                        )}
+                                    <SelectedUserContent
+                                        selectedUser = {this.state.selectedUser}
+                                        deleteUser = {()=>this.deleteUser(this.state.selectedUser)}
                                     />
-                                    }
-                                    {!this.state.selectedUser && <div>Для отображения детальной информации необходимо добавить игрока. После чего выбрать необходимого из списка добавленных игроков.</div>}
                                 </Panel>
                                 <Panel header={"Результаты поиска общих игр ("+this.state.commonGames.length+")"} key="2">
                                     <CommonGamesContent commonGames = {this.state.commonGames} />
